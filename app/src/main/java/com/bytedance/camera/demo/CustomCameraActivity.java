@@ -4,13 +4,10 @@ import android.content.Intent;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
-import android.media.MediaTimestamp;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.support.annotation.RequiresApi;
-import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Surface;
@@ -18,8 +15,6 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.Window;
 import android.view.WindowManager;
-
-import com.bytedance.camera.demo.utils.Utils;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -30,9 +25,10 @@ import static com.bytedance.camera.demo.utils.Utils.MEDIA_TYPE_IMAGE;
 import static com.bytedance.camera.demo.utils.Utils.MEDIA_TYPE_VIDEO;
 import static com.bytedance.camera.demo.utils.Utils.getOutputMediaFile;
 
-public class CustomCameraActivity extends AppCompatActivity {
+public class CustomCameraActivity extends AppCompatActivity implements SurfaceHolder.Callback{
 
     private SurfaceView mSurfaceView;
+    private SurfaceHolder surfaceHolder;
     private Camera mCamera;
 
     private int CAMERA_TYPE = Camera.CameraInfo.CAMERA_FACING_BACK;
@@ -43,7 +39,6 @@ public class CustomCameraActivity extends AppCompatActivity {
     private String videoPath = null;
     private static int zoomValue = 0;
 
-    @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -55,31 +50,9 @@ public class CustomCameraActivity extends AppCompatActivity {
         mCamera = getCamera(CAMERA_TYPE);
         mSurfaceView = findViewById(R.id.img);
         //todo 给SurfaceHolder添加Callback
-        SurfaceHolder surfaceHolder = mSurfaceView.getHolder();
+        surfaceHolder = mSurfaceView.getHolder();
         surfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-        surfaceHolder.addCallback(new SurfaceHolder.Callback() {
-            @Override
-            public void surfaceCreated(SurfaceHolder holder) {
-                try {
-                    mCamera.setPreviewDisplay(holder);
-                    mCamera.startPreview();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-
-            }
-
-            @Override
-            public void surfaceDestroyed(SurfaceHolder holder) {
-                mCamera.stopPreview();
-                mCamera.release();
-                mCamera = null;
-            }
-        });
+        surfaceHolder.addCallback(this);
 
         findViewById(R.id.btn_picture).setOnClickListener(v -> {
             //todo 拍一张照片
@@ -90,20 +63,12 @@ public class CustomCameraActivity extends AppCompatActivity {
             //todo 录制，第一次点击是start，第二次点击是stop
             if (isRecording) {
                 //todo 停止录制
-                isRecording = false;
                 releaseMediaRecorder();
+                isRecording = false;
             } else {
                 //todo 录制
-                isRecording = true;
                 prepareVideoRecorder();
-                try{
-                    mMediaRecorder.prepare();
-                    mMediaRecorder.start();
-                }catch (Exception e){
-                    mMediaRecorder.release();
-                    releaseMediaRecorder();
-                    return;
-                }
+                isRecording = true;
             }
         });
 
@@ -141,6 +106,23 @@ public class CustomCameraActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+        mCamera = getCamera(Camera.CameraInfo.CAMERA_FACING_BACK);
+        startPreview(holder);
+    }
+
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+
+    }
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        releaseMediaRecorder();
+        releaseCameraAndPreview();
+    }
+
     public Camera getCamera(int position) {
         CAMERA_TYPE = position;
         if (mCamera != null) {
@@ -150,8 +132,12 @@ public class CustomCameraActivity extends AppCompatActivity {
 
         //todo 摄像头添加属性，例是否自动对焦，设置旋转方向等
 
+
         rotationDegree = getCameraDisplayOrientation(CAMERA_TYPE);
         cam.setDisplayOrientation(rotationDegree);
+        if(cam.getParameters().isZoomSupported()){
+            zoomValue = cam.getParameters().getZoom();
+        }
         return cam;
     }
 
@@ -198,12 +184,10 @@ public class CustomCameraActivity extends AppCompatActivity {
 
     private void releaseCameraAndPreview() {
         //todo 释放camera资源
-        if(mCamera != null)
-        {
+
             mCamera.stopPreview();
             mCamera.release();
             mCamera = null;
-        }
     }
 
     Camera.Size size;
@@ -221,7 +205,6 @@ public class CustomCameraActivity extends AppCompatActivity {
 
     private MediaRecorder mMediaRecorder;
 
-    @RequiresApi(api = Build.VERSION_CODES.O)
     private boolean prepareVideoRecorder() {
         //todo 准备MediaRecorder
         mMediaRecorder = new MediaRecorder();
@@ -245,9 +228,10 @@ public class CustomCameraActivity extends AppCompatActivity {
         try{
             mMediaRecorder.prepare();
             mMediaRecorder.start();
-            releaseMediaRecorder();
         }catch (Exception e){
             releaseMediaRecorder();
+            Log.i("  ", "prepareVideoRecorder: ");
+            return false;
         }
         return true;
     }
@@ -255,6 +239,10 @@ public class CustomCameraActivity extends AppCompatActivity {
 
     private void releaseMediaRecorder() {
         //todo 释放MediaRecorder
+        if(mMediaRecorder == null){
+            Log.d("mMediaRecorder ","null !");
+            return;
+        }
         mMediaRecorder.stop();
         mMediaRecorder.reset();
         mMediaRecorder.release();
@@ -280,6 +268,7 @@ public class CustomCameraActivity extends AppCompatActivity {
         }
 
         mCamera.startPreview();
+        sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(pictureFile)));
     };
 
 

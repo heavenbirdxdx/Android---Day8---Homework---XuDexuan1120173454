@@ -9,6 +9,7 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.widget.Toast;
 
 import java.util.Arrays;
@@ -19,6 +20,7 @@ public class MainActivity extends AppCompatActivity {
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
             Manifest.permission.RECORD_AUDIO};
     private final int REQUEST_CODE = 11;
+    private static final int REQUST_CODE_CAMERA_AUDIO_STORAGE = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,18 +56,21 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if(requestCode == REQUEST_CODE){
-            boolean grantPer = false;
-            for(int i : grantResults) {
-                if (i != PackageManager.PERMISSION_GRANTED)
-                    grantPer = true;
-            }
+        if (permissions.length == 0 || grantResults.length == 0) {
+            return;
+        }
 
-            if(grantPer)
-                Toast.makeText(getApplicationContext(), "需要授权以开启相机", Toast.LENGTH_LONG).show();
-            else
-                startActivity(new Intent(MainActivity.this, CustomCameraActivity.class));
+        switch (requestCode) {
+            case REQUST_CODE_CAMERA_AUDIO_STORAGE: {
+                for (int i = 0; i < grantResults.length - 1; i++) {
+                    if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                        Toast.makeText(getApplicationContext(), "授权成功", Toast.LENGTH_LONG).show();
+                    } else if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
+                        Toast.makeText(getApplicationContext(), "授权失败", Toast.LENGTH_LONG).show();
+                    }
+                }
+                break;
+            }
         }
     }
-
 }
